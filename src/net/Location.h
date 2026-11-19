@@ -10,5 +10,5 @@ struct LocationResult {
     std::wstring error;
 };
 
-// 依次尝试 ipwho.is、ipinfo.io、ip-api.com
+// 依次尝试 ip-api.com（IPv4）、ipinfo.io、ipwho.is
 LocationResult LocateByIp();

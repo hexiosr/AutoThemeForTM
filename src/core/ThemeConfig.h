@@ -23,6 +23,8 @@ public:
 
     void Load();
     void Save(const ThemeConfig& cfg);
+    void UpdateLocation(double lat, double lon, const std::wstring& city,
+                        long long locateTime);
     ThemeConfig Get() const;
 
     static bool ParseTime(const std::wstring& text, int& minutes);

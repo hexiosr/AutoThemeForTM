@@ -3,4 +3,3 @@
 #include "pch.h"
 
 std::wstring Utf8ToWide(const std::string& s);
-std::string WideToUtf8(const std::wstring& s);

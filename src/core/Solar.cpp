@@ -27,7 +27,7 @@ SunTimes ComputeSunTimes(int year, int month, int day, double lat, double lon) {
     const long long jan1 = DaysFromCivil(year, 1, 1);
     const int n = (int)(days - jan1) + 1;
 
-    const double gamma = 2.0 * kPi / 365.0 * (n - 1 + (12.0 - 12.0) / 24.0);
+    const double gamma = 2.0 * kPi / 365.0 * (n - 1);
     const double eqTime = 229.18 * (0.000075
         + 0.001868 * cos(gamma)
         - 0.032077 * sin(gamma)

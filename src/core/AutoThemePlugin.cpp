@@ -53,26 +53,23 @@ long long NextBoundary(const ThemeConfig& cfg, long long now) {
         time_t t = (time_t)now;
         struct tm lt{};
         localtime_s(&lt, &t);
-        lt.tm_hour = 0;
-        lt.tm_min = 0;
-        lt.tm_sec = 0;
-        lt.tm_isdst = -1;
-        time_t midnight = mktime(&lt);
-        if (midnight == (time_t)-1) return now + 3600;
 
-        for (int day = 0; day < 2; ++day) {
-            long long base = (long long)midnight + (long long)day * 86400;
-            long long candidates[2] = {
-                base + (long long)cfg.darkStartMin * 60,
-                base + (long long)cfg.darkEndMin * 60
-            };
-            long long best = 0;
-            for (long long c : candidates) {
-                if (c > now && (best == 0 || c < best)) best = c;
+        long long best = 0;
+        for (int day = 0; day < 3; ++day) {
+            for (int minutes : { cfg.darkStartMin, cfg.darkEndMin }) {
+                struct tm dayTm = lt;
+                dayTm.tm_mday += day;
+                dayTm.tm_hour = minutes / 60;
+                dayTm.tm_min = minutes % 60;
+                dayTm.tm_sec = 0;
+                dayTm.tm_isdst = -1;
+                time_t c = mktime(&dayTm);
+                if (c == (time_t)-1) continue;
+                const long long cs = (long long)c;
+                if (cs > now && (best == 0 || cs < best)) best = cs;
             }
-            if (best != 0) return best;
         }
-        return now + 3600;
+        return best != 0 ? best : now + 3600;
     }
 
     if (cfg.mode == 1 && !(cfg.lat == 0 && cfg.lon == 0)) {
@@ -150,10 +147,14 @@ const wchar_t* CThemeItem::GetItemValueSampleText() const {
 }
 
 int CThemeItem::OnMouseEvent(MouseEventType type, int, int, void*, int) {
-    if (type == MT_LCLICKED) {
-        if (ThemeConfigStore::Instance().Get().clickToggle) m_plugin->ToggleManual();
-    } else if (type == MT_DBCLICKED) {
+    if (type == MT_DBCLICKED) {
+        m_lastDbClick = (long long)GetTickCount64();
         return 1;   // 拦截双击，避免触发 TrafficMonitor 的默认动作
+    }
+    if (type == MT_LCLICKED) {
+        // 双击的第二下抬起紧跟在 MT_DBCLICKED 之后，忽略以免再切换一次
+        if ((long long)GetTickCount64() - m_lastDbClick < 400) return 0;
+        if (ThemeConfigStore::Instance().Get().clickToggle) m_plugin->ToggleManual();
     }
     return 0;
 }
@@ -193,7 +194,7 @@ const wchar_t* CAutoThemePlugin::GetInfo(PluginInfoIndex index) {
     case TMI_AUTHOR:      return L"ziphooo";
     case TMI_COPYRIGHT:   return L"© 2026 ziphooo";
     case TMI_VERSION:     return L"0.1.0";
-    case TMI_URL:         return L"https://github.com/hexiosr";
+    case TMI_URL:         return L"https://github.com/hexiosr/AutoThemeForTM";
     default:              return L"";
     }
 }
@@ -211,6 +212,20 @@ bool CAutoThemePlugin::IsCurrentlyLight() const {
         return true;
     }
     return value != 0;
+}
+
+bool CAutoThemePlugin::ThemeMatches(bool light) const {
+    const DWORD want = light ? 1 : 0;
+    for (const wchar_t* name : { L"AppsUseLightTheme", L"SystemUsesLightTheme" }) {
+        DWORD value = 0;
+        DWORD size = sizeof(value);
+        if (RegGetValueW(HKEY_CURRENT_USER, kPersonalizeKey, name,
+                         RRF_RT_REG_DWORD, nullptr, &value, &size) != ERROR_SUCCESS ||
+            value != want) {
+            return false;
+        }
+    }
+    return true;
 }
 
 void CAutoThemePlugin::ApplyTheme(bool light) {
@@ -271,7 +286,8 @@ void CAutoThemePlugin::WorkerLoop() {
     while (!m_stop.load()) {
         Tick(ThemeConfigStore::Instance().Get());
         if (m_stop.load()) break;
-        WaitForSingleObject(m_wakeEvent, 10000);
+        if (m_wakeEvent) WaitForSingleObject(m_wakeEvent, 10000);
+        else Sleep(10000);
     }
 }
 
@@ -315,7 +331,8 @@ void CAutoThemePlugin::Tick(const ThemeConfig& cfgIn) {
                     cfg.lon = loc.lon;
                     cfg.city = loc.city;
                     cfg.locateTime = now;
-                    ThemeConfigStore::Instance().Save(cfg);
+                    ThemeConfigStore::Instance().UpdateLocation(loc.lat, loc.lon,
+                                                                loc.city, now);
                 } else if (!hasCoords) {
                     SetTooltip(loc.error + ClickHint());
                     return;
@@ -352,7 +369,7 @@ void CAutoThemePlugin::Tick(const ThemeConfig& cfgIn) {
 
     if (!overridden && desired >= 0) {
         const bool light = desired == 1;
-        if (light != IsCurrentlyLight()) ApplyTheme(light);
+        if (!ThemeMatches(light)) ApplyTheme(light);
     }
 
     std::wstring tip = detail;
@@ -368,7 +385,6 @@ void CAutoThemePlugin::SetTooltip(const std::wstring& text) {
 
 void CAutoThemePlugin::ToggleManual() {
     const bool light = !IsCurrentlyLight();
-    ApplyTheme(light);
 
     ThemeConfig cfg = ThemeConfigStore::Instance().Get();
     if (cfg.mode != 2) {
@@ -378,6 +394,8 @@ void CAutoThemePlugin::ToggleManual() {
         m_override = true;
         m_overrideUntil = until;
     }
+
+    ApplyTheme(light);
 
     std::wstring tip = light ? L"已切换为浅色" : L"已切换为深色";
     tip += ClickHint();

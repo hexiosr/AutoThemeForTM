@@ -19,6 +19,7 @@ public:
 
 private:
     CAutoThemePlugin* m_plugin;
+    long long m_lastDbClick = 0;
 };
 
 class CAutoThemePlugin : public ITMPlugin {
@@ -44,6 +45,7 @@ public:
     void ToggleManual();
     void OnSettingsSaved();
     bool IsCurrentlyLight() const;
+    bool ThemeMatches(bool light) const;
 
 private:
     void StartOnce(const std::wstring& dir);

@@ -27,8 +27,12 @@ constexpr int kMinuteStep = 5;
 
 struct DlgState {
     bool result = false;
+    bool saved = false;
     bool closed = false;
     CAutoThemePlugin* plugin = nullptr;
+
+    HFONT hFont = nullptr;
+    bool ownFont = false;
 
     HWND hComboMode = nullptr;
     HWND hComboStartH = nullptr;
@@ -209,7 +213,9 @@ void CreateControls(HWND hWnd, DlgState* st) {
     lf.lfWeight = FW_NORMAL;
     lstrcpynW(lf.lfFaceName, L"微软雅黑", LF_FACESIZE);
     HFONT hFont = CreateFontIndirectW(&lf);
+    st->ownFont = hFont != nullptr;
     if (!hFont) hFont = (HFONT)GetStockObject(DEFAULT_GUI_FONT);
+    st->hFont = hFont;
 
     auto add = [&](LPCWSTR cls, LPCWSTR text, DWORD style,
                    int x, int y, int w, int h, int id, HWND* out = nullptr) {
@@ -483,6 +489,7 @@ LRESULT CALLBACK DlgWndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam) {
             UpdateUiState(st);
         } else if (id == IDC_BTN_OK) {
             if (SaveFromDialog(st, hWnd)) {
+                st->saved = true;
                 st->result = true;
                 st->closed = true;
             }
@@ -490,7 +497,7 @@ LRESULT CALLBACK DlgWndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam) {
             st->result = false;
             st->closed = true;
         } else if (id == IDC_BTN_APPLY) {
-            SaveFromDialog(st, hWnd);
+            if (SaveFromDialog(st, hWnd)) st->saved = true;
         }
         break;
     }
@@ -498,6 +505,11 @@ LRESULT CALLBACK DlgWndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam) {
         if (st) { st->result = false; st->closed = true; }
         return 0;
     case WM_DESTROY:
+        if (st && st->ownFont && st->hFont) DeleteObject(st->hFont);
+        if (st) {
+            st->hFont = nullptr;
+            st->ownFont = false;
+        }
         return 0;
     }
     return DefWindowProcW(hWnd, msg, wParam, lParam);
@@ -601,5 +613,5 @@ bool COptionsDlg::Show(HWND hParent, CAutoThemePlugin* plugin) {
         hFocus = hPrevForeground;
     if (hFocus) SetForegroundWindow(hFocus);
 
-    return state.result;
+    return state.result || state.saved;
 }

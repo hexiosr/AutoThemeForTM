@@ -8,7 +8,6 @@ struct Response {
     long status = 0;
     std::string body;
     bool transportOk = false;
-    std::wstring error;
 };
 
 bool Request(const std::wstring& method, const std::string& url,

@@ -16,6 +16,21 @@ bool IsDigit(wchar_t c) {
     return c >= L'0' && c <= L'9';
 }
 
+void WriteLocation(const std::wstring& file, double lat, double lon,
+                   const std::wstring& city, long long locateTime) {
+    wchar_t num[64] = {};
+    swprintf_s(num, L"%.6f", lat);
+    WritePrivateProfileStringW(L"Location", L"Lat", num, file.c_str());
+    swprintf_s(num, L"%.6f", lon);
+    WritePrivateProfileStringW(L"Location", L"Lon", num, file.c_str());
+    swprintf_s(num, L"%lld", locateTime);
+    WritePrivateProfileStringW(L"Location", L"LocateTime", num, file.c_str());
+    if (city.empty())
+        WritePrivateProfileStringW(L"Location", L"City", nullptr, file.c_str());
+    else
+        WritePrivateProfileStringW(L"Location", L"City", city.c_str(), file.c_str());
+}
+
 } // namespace
 
 ThemeConfigStore& ThemeConfigStore::Instance() {
@@ -116,9 +131,10 @@ void ThemeConfigStore::Load() {
 void ThemeConfigStore::Save(const ThemeConfig& cfg) {
     std::lock_guard<std::mutex> saveLock(m_saveMutex);
     const std::wstring file = FilePath();
+    const int mode = (cfg.mode < 0 || cfg.mode > 2) ? 0 : cfg.mode;
 
     WritePrivateProfileStringW(L"Switch", L"Mode",
-        std::to_wstring(cfg.mode).c_str(), file.c_str());
+        std::to_wstring(mode).c_str(), file.c_str());
     WritePrivateProfileStringW(L"Switch", L"DarkStart",
         FormatTime(cfg.darkStartMin).c_str(), file.c_str());
     WritePrivateProfileStringW(L"Switch", L"DarkEnd",
@@ -128,23 +144,23 @@ void ThemeConfigStore::Save(const ThemeConfig& cfg) {
     WritePrivateProfileStringW(L"Location", L"AutoLocate",
         cfg.autoLocate ? L"1" : L"0", file.c_str());
 
-    wchar_t num[64] = {};
-    swprintf_s(num, L"%.6f", cfg.lat);
-    WritePrivateProfileStringW(L"Location", L"Lat", num, file.c_str());
-    swprintf_s(num, L"%.6f", cfg.lon);
-    WritePrivateProfileStringW(L"Location", L"Lon", num, file.c_str());
-
-    swprintf_s(num, L"%lld", cfg.locateTime);
-    WritePrivateProfileStringW(L"Location", L"LocateTime", num, file.c_str());
-
-    if (cfg.city.empty())
-        WritePrivateProfileStringW(L"Location", L"City", nullptr, file.c_str());
-    else
-        WritePrivateProfileStringW(L"Location", L"City", cfg.city.c_str(), file.c_str());
+    WriteLocation(file, cfg.lat, cfg.lon, cfg.city, cfg.locateTime);
 
     std::lock_guard<std::mutex> lock(m_mutex);
     m_cfg = cfg;
-    m_cfg.mode = (cfg.mode < 0 || cfg.mode > 2) ? 0 : cfg.mode;
+    m_cfg.mode = mode;
+}
+
+void ThemeConfigStore::UpdateLocation(double lat, double lon, const std::wstring& city,
+                                      long long locateTime) {
+    std::lock_guard<std::mutex> saveLock(m_saveMutex);
+    WriteLocation(FilePath(), lat, lon, city, locateTime);
+
+    std::lock_guard<std::mutex> lock(m_mutex);
+    m_cfg.lat = lat;
+    m_cfg.lon = lon;
+    m_cfg.city = city;
+    m_cfg.locateTime = locateTime;
 }
 
 ThemeConfig ThemeConfigStore::Get() const {

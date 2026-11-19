@@ -10,7 +10,7 @@ bool Request(const std::wstring& method, const std::string& url,
              const std::string& extraHeaders, const std::string& body,
              Response& res, int timeoutMs) {
     res = Response{};
-    if (url.empty()) { res.error = L"地址为空"; return false; }
+    if (url.empty()) return false;
 
     std::wstring urlW = Utf8ToWide(url);
     URL_COMPONENTS uc{};
@@ -22,7 +22,6 @@ bool Request(const std::wstring& method, const std::string& url,
     uc.lpszUrlPath = path;       uc.dwUrlPathLength = 4095;
     uc.lpszExtraInfo = extra;    uc.dwExtraInfoLength = 2047;
     if (!WinHttpCrackUrl(urlW.c_str(), (DWORD)urlW.size(), 0, &uc) || uc.dwHostNameLength == 0) {
-        res.error = L"URL 解析失败";
         return false;
     }
     std::wstring target = path;
@@ -31,7 +30,7 @@ bool Request(const std::wstring& method, const std::string& url,
     HINTERNET session = WinHttpOpen(L"AutoTheme/0.1",
                                     WINHTTP_ACCESS_TYPE_DEFAULT_PROXY,
                                     WINHTTP_NO_PROXY_NAME, WINHTTP_NO_PROXY_BYPASS, 0);
-    if (!session) { res.error = L"WinHTTP 初始化失败"; return false; }
+    if (!session) { return false; }
     WinHttpSetTimeouts(session, timeoutMs, timeoutMs, timeoutMs, timeoutMs);
     DWORD redirectPolicy = WINHTTP_OPTION_REDIRECT_POLICY_NEVER;
     WinHttpSetOption(session, WINHTTP_OPTION_REDIRECT_POLICY, &redirectPolicy, sizeof(redirectPolicy));
@@ -45,7 +44,6 @@ bool Request(const std::wstring& method, const std::string& url,
                                  uc.nScheme == INTERNET_SCHEME_HTTPS ? WINHTTP_FLAG_SECURE : 0);
     }
     if (!req) {
-        res.error = L"无法建立连接";
         if (conn) WinHttpCloseHandle(conn);
         WinHttpCloseHandle(session);
         return false;
@@ -60,7 +58,6 @@ bool Request(const std::wstring& method, const std::string& url,
         body.empty() ? WINHTTP_NO_REQUEST_DATA : (LPVOID)body.data(),
         (DWORD)body.size(), (DWORD)body.size(), 0);
     if (!sent || !WinHttpReceiveResponse(req, NULL)) {
-        res.error = L"网络连接失败";
         failed = true;
     }
 
