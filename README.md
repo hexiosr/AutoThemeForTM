@@ -10,7 +10,7 @@
 
 1. 退出 TrafficMonitor
 2. 把 `bin\Release\x64\AutoTheme.dll` 复制到 `plugins` 目录（也可直接从 [Releases](https://github.com/hexiosr/AutoThemeForTM/releases) 下载）
-3. 在 TrafficMonitor 的显示文本设置里启用「主题模式」，或把 `theme_mode` 加入 `[task_bar]` 的 `plugin_display_item`
+3. 在 TrafficMonitor 的显示文本设置里启用「主题模式」
 4. 启动 TrafficMonitor
 
 ## 设置
