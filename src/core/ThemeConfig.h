@@ -7,7 +7,7 @@ struct ThemeConfig {
     int darkStartMin = 19 * 60;
     int darkEndMin = 7 * 60;
     bool autoLocate = true;
-    bool clickToggle = true;   // 任务栏单击切换主题
+    int clickAction = 1;       // 任务栏点击切换主题：0 不切换，1 单击，2 双击
     double lat = 0;
     double lon = 0;
     long long locateTime = 0;

@@ -112,7 +112,11 @@ void ThemeConfigStore::Load() {
     if (ParseTime(buf, value)) cfg.darkEndMin = value;
 
     cfg.autoLocate = GetPrivateProfileIntW(L"Location", L"AutoLocate", 1, file.c_str()) != 0;
-    cfg.clickToggle = GetPrivateProfileIntW(L"Switch", L"ClickToggle", 1, file.c_str()) != 0;
+    cfg.clickAction = (int)GetPrivateProfileIntW(L"Switch", L"ClickAction", -1, file.c_str());
+    if (cfg.clickAction < 0 || cfg.clickAction > 2) {
+        // 兼容旧版 ClickToggle：勾选=单击切换，未勾选=不切换
+        cfg.clickAction = GetPrivateProfileIntW(L"Switch", L"ClickToggle", 1, file.c_str()) != 0 ? 1 : 0;
+    }
 
     GetPrivateProfileStringW(L"Location", L"Lat", L"0", buf, 128, file.c_str());
     cfg.lat = wcstod(buf, nullptr);
@@ -148,8 +152,8 @@ void ThemeConfigStore::Save(const ThemeConfig& cfg) {
         FormatTime(cfg.darkStartMin).c_str(), file.c_str());
     WritePrivateProfileStringW(L"Switch", L"DarkEnd",
         FormatTime(cfg.darkEndMin).c_str(), file.c_str());
-    WritePrivateProfileStringW(L"Switch", L"ClickToggle",
-        cfg.clickToggle ? L"1" : L"0", file.c_str());
+    WritePrivateProfileStringW(L"Switch", L"ClickAction",
+        std::to_wstring(cfg.clickAction).c_str(), file.c_str());
     WritePrivateProfileStringW(L"Location", L"AutoLocate",
         cfg.autoLocate ? L"1" : L"0", file.c_str());
 

@@ -33,9 +33,11 @@ bool NeedLocation(const ThemeConfig& cfg, long long now) {
 }
 
 std::wstring ClickHint() {
-    return ThemeConfigStore::Instance().Get().clickToggle
-        ? L"｜单击切换主题"
-        : L"｜右键菜单可切换主题";
+    switch (ThemeConfigStore::Instance().Get().clickAction) {
+    case 1:  return L"｜单击切换主题";
+    case 2:  return L"｜双击切换主题";
+    default: return L"｜右键菜单可切换主题";
+    }
 }
 
 // 下一次自动切换的时刻（手动切换后到此时刻前不再自动覆盖）
@@ -138,14 +140,17 @@ const wchar_t* CThemeItem::GetItemValueSampleText() const {
 }
 
 int CThemeItem::OnMouseEvent(MouseEventType type, int, int, void*, int) {
+    const int clickAction = ThemeConfigStore::Instance().Get().clickAction;
+
     if (type == MT_DBCLICKED) {
-        m_lastDbClick = (long long)GetTickCount64();
+        if (clickAction == 2) m_plugin->ToggleManual();
+        else m_lastDbClick = (long long)GetTickCount64();
         return 1;   // 拦截双击，避免触发 TrafficMonitor 的默认动作
     }
-    if (type == MT_LCLICKED) {
+    if (type == MT_LCLICKED && clickAction == 1) {
         // 双击的第二下抬起紧跟在 MT_DBCLICKED 之后，忽略以免再切换一次
         if ((long long)GetTickCount64() - m_lastDbClick < 400) return 0;
-        if (ThemeConfigStore::Instance().Get().clickToggle) m_plugin->ToggleManual();
+        m_plugin->ToggleManual();
     }
     return 0;
 }

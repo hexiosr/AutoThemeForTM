@@ -21,10 +21,32 @@ enum {
     IDC_BTN_OK,
     IDC_BTN_APPLY,
     IDC_BTN_CANCEL,
-    IDC_CHECK_CLICK,
+    IDC_COMBO_CLICK,
 };
 
 constexpr int kMinuteStep = 5;
+
+// 对话框布局（客户区像素）
+constexpr int kDlgW = 420;
+constexpr int kDlgH = 522;
+constexpr int kMargin = 36;
+constexpr int kLabelW = 88;
+constexpr int kCtlX = 140;
+constexpr int kCtlW = kDlgW - kMargin - kCtlX;
+constexpr int kRowH = 34;
+constexpr int kRowModeY = 40;
+constexpr int kRowStartY = 98;
+constexpr int kRowEndY = 156;
+constexpr int kSepY = 210;
+constexpr int kAutoY = 228;
+constexpr int kCoordY = 282;
+constexpr int kClickY = 340;
+constexpr int kStatusY = 392;
+constexpr int kStatusH = 54;
+constexpr int kBtnY = 462;
+constexpr int kBtnW = 100;
+constexpr int kBtnH = 40;
+constexpr int kBtnGap = 12;
 
 struct DlgState {
     bool result = false;
@@ -41,7 +63,7 @@ struct DlgState {
     HWND hComboEndH = nullptr;
     HWND hComboEndM = nullptr;
     HWND hCheckAuto = nullptr;
-    HWND hCheckClick = nullptr;
+    HWND hComboClick = nullptr;
     HWND hEditLat = nullptr;
     HWND hEditLon = nullptr;
     HWND hLblStatus = nullptr;
@@ -204,9 +226,11 @@ void UpdateUiState(DlgState* st) {
                                                              st->hComboEndM)).c_str());
         SetStatus(st, buf);
     } else if (!solar) {
-        bool clickOn = SendMessageW(st->hCheckClick, BM_GETCHECK, 0, 0) == BST_CHECKED;
-        SetStatus(st, clickOn ? L"仅手动切换：点击任务栏主题项"
-                              : L"仅手动切换：右键菜单");
+        int click = (int)SendMessageW(st->hComboClick, CB_GETCURSEL, 0, 0);
+        if (click < 0) click = 0;
+        if (click == 1)      SetStatus(st, L"仅手动切换：单击任务栏主题项");
+        else if (click == 2) SetStatus(st, L"仅手动切换：双击任务栏主题项");
+        else                 SetStatus(st, L"仅手动切换：右键菜单");
     } else {
         wchar_t lat[32] = {}, lon[32] = {};
         GetWindowTextW(st->hEditLat, lat, 32);
@@ -237,7 +261,7 @@ void CreateControls(HWND hWnd, DlgState* st) {
     HINSTANCE hInst = (HINSTANCE)GetWindowLongPtrW(hWnd, GWLP_HINSTANCE);
 
     LOGFONTW lf = {};
-    lf.lfHeight = -16;
+    lf.lfHeight = -17;
     lf.lfWeight = FW_NORMAL;
     lstrcpynW(lf.lfFaceName, L"微软雅黑", LF_FACESIZE);
     HFONT hFont = CreateFontIndirectW(&lf);
@@ -250,40 +274,42 @@ void CreateControls(HWND hWnd, DlgState* st) {
         AddCtrlImpl(hWnd, hInst, hFont, cls, text, style, x, y, w, h, id, out);
     };
 
-    add(L"STATIC", L"模式", SS_LEFT | SS_CENTERIMAGE, 48, 38, 86, 30, 0, nullptr);
+    add(L"STATIC", L"模式", SS_LEFT | SS_CENTERIMAGE, kMargin, kRowModeY, kLabelW, kRowH, 0, nullptr);
     add(L"COMBOBOX", L"", CBS_DROPDOWNLIST | WS_VSCROLL | WS_BORDER,
-        146, 38, 150, 200, IDC_COMBO_MODE, &st->hComboMode);
+        kCtlX, kRowModeY, kCtlW, 200, IDC_COMBO_MODE, &st->hComboMode);
 
-    add(L"STATIC", L"深色开始", SS_LEFT | SS_CENTERIMAGE, 48, 90, 86, 30, 0, &st->hLblStart);
+    add(L"STATIC", L"深色开始", SS_LEFT | SS_CENTERIMAGE, kMargin, kRowStartY, kLabelW, kRowH, 0, &st->hLblStart);
     add(L"COMBOBOX", L"", CBS_DROPDOWNLIST | WS_VSCROLL | WS_BORDER,
-        146, 90, 60, 260, IDC_COMBO_START_H, &st->hComboStartH);
-    add(L"STATIC", L":", SS_CENTER | SS_CENTERIMAGE, 206, 90, 14, 30, 0, nullptr);
+        kCtlX, kRowStartY, 64, 260, IDC_COMBO_START_H, &st->hComboStartH);
+    add(L"STATIC", L":", SS_CENTER | SS_CENTERIMAGE, kCtlX + 64, kRowStartY, 16, kRowH, 0, nullptr);
     add(L"COMBOBOX", L"", CBS_DROPDOWNLIST | WS_VSCROLL | WS_BORDER,
-        220, 90, 60, 260, IDC_COMBO_START_M, &st->hComboStartM);
+        kCtlX + 80, kRowStartY, 64, 260, IDC_COMBO_START_M, &st->hComboStartM);
 
-    add(L"STATIC", L"深色结束", SS_LEFT | SS_CENTERIMAGE, 48, 142, 86, 30, 0, &st->hLblEnd);
+    add(L"STATIC", L"深色结束", SS_LEFT | SS_CENTERIMAGE, kMargin, kRowEndY, kLabelW, kRowH, 0, &st->hLblEnd);
     add(L"COMBOBOX", L"", CBS_DROPDOWNLIST | WS_VSCROLL | WS_BORDER,
-        146, 142, 60, 260, IDC_COMBO_END_H, &st->hComboEndH);
-    add(L"STATIC", L":", SS_CENTER | SS_CENTERIMAGE, 206, 142, 14, 30, 0, nullptr);
+        kCtlX, kRowEndY, 64, 260, IDC_COMBO_END_H, &st->hComboEndH);
+    add(L"STATIC", L":", SS_CENTER | SS_CENTERIMAGE, kCtlX + 64, kRowEndY, 16, kRowH, 0, nullptr);
     add(L"COMBOBOX", L"", CBS_DROPDOWNLIST | WS_VSCROLL | WS_BORDER,
-        220, 142, 60, 260, IDC_COMBO_END_M, &st->hComboEndM);
+        kCtlX + 80, kRowEndY, 64, 260, IDC_COMBO_END_M, &st->hComboEndM);
 
-    add(L"BUTTON", L"自动定位（按 IP）", BS_AUTOCHECKBOX, 48, 198, 250, 30,
+    add(L"BUTTON", L"自动定位（按 IP）", BS_AUTOCHECKBOX, kMargin, kAutoY, 280, 30,
         IDC_CHECK_AUTO, &st->hCheckAuto);
 
-    add(L"STATIC", L"纬度", SS_LEFT | SS_CENTERIMAGE, 48, 246, 40, 30, 0, &st->hLblLat);
-    add(L"EDIT", L"", WS_BORDER, 92, 246, 70, 30, IDC_EDIT_LAT, &st->hEditLat);
-    add(L"STATIC", L"经度", SS_LEFT | SS_CENTERIMAGE, 176, 246, 40, 30, 0, &st->hLblLon);
-    add(L"EDIT", L"", WS_BORDER, 220, 246, 70, 30, IDC_EDIT_LON, &st->hEditLon);
+    add(L"STATIC", L"纬度", SS_LEFT | SS_CENTERIMAGE, kMargin, kCoordY, 40, kRowH, 0, &st->hLblLat);
+    add(L"EDIT", L"", WS_BORDER, kMargin + 44, kCoordY, 110, kRowH, IDC_EDIT_LAT, &st->hEditLat);
+    add(L"STATIC", L"经度", SS_LEFT | SS_CENTERIMAGE, 210, kCoordY, 40, kRowH, 0, &st->hLblLon);
+    add(L"EDIT", L"", WS_BORDER, 254, kCoordY, 110, kRowH, IDC_EDIT_LON, &st->hEditLon);
 
-    add(L"BUTTON", L"任务栏单击切换主题", BS_AUTOCHECKBOX, 48, 284, 250, 30,
-        IDC_CHECK_CLICK, &st->hCheckClick);
+    add(L"STATIC", L"点击切换", SS_LEFT | SS_CENTERIMAGE, kMargin, kClickY, kLabelW, kRowH, 0, nullptr);
+    add(L"COMBOBOX", L"", CBS_DROPDOWNLIST | WS_VSCROLL | WS_BORDER,
+        kCtlX, kClickY, kCtlW, 200, IDC_COMBO_CLICK, &st->hComboClick);
 
-    add(L"STATIC", L"", SS_LEFT, 48, 322, 286, 46, IDC_LBL_STATUS, &st->hLblStatus);
+    add(L"STATIC", L"", SS_LEFT, kMargin, kStatusY, kDlgW - 2 * kMargin, kStatusH, IDC_LBL_STATUS, &st->hLblStatus);
 
-    add(L"BUTTON", L"确定", BS_OWNERDRAW, 28, 372, 92, 38, IDC_BTN_OK);
-    add(L"BUTTON", L"应用", BS_OWNERDRAW, 136, 372, 92, 38, IDC_BTN_APPLY);
-    add(L"BUTTON", L"取消", BS_OWNERDRAW, 244, 372, 92, 38, IDC_BTN_CANCEL);
+    const int btnX = kDlgW - kMargin - (3 * kBtnW + 2 * kBtnGap);
+    add(L"BUTTON", L"确定", BS_OWNERDRAW, btnX, kBtnY, kBtnW, kBtnH, IDC_BTN_OK);
+    add(L"BUTTON", L"应用", BS_OWNERDRAW, btnX + kBtnW + kBtnGap, kBtnY, kBtnW, kBtnH, IDC_BTN_APPLY);
+    add(L"BUTTON", L"取消", BS_OWNERDRAW, btnX + 2 * (kBtnW + kBtnGap), kBtnY, kBtnW, kBtnH, IDC_BTN_CANCEL);
     g_btnHover[0] = g_btnHover[1] = g_btnHover[2] = false;
     g_btnOldProc = nullptr;
     for (HWND h = GetWindow(hWnd, GW_CHILD); h; h = GetWindow(h, GW_HWNDNEXT)) {
@@ -317,7 +343,11 @@ void CreateControls(HWND hWnd, DlgState* st) {
     SetComboTime(st->hComboEndH, st->hComboEndM, cfg.darkEndMin);
 
     SendMessageW(st->hCheckAuto, BM_SETCHECK, cfg.autoLocate ? BST_CHECKED : BST_UNCHECKED, 0);
-    SendMessageW(st->hCheckClick, BM_SETCHECK, cfg.clickToggle ? BST_CHECKED : BST_UNCHECKED, 0);
+    SendMessageW(st->hComboClick, CB_ADDSTRING, 0, (LPARAM)L"不切换");
+    SendMessageW(st->hComboClick, CB_ADDSTRING, 0, (LPARAM)L"单击切换");
+    SendMessageW(st->hComboClick, CB_ADDSTRING, 0, (LPARAM)L"双击切换");
+    SendMessageW(st->hComboClick, CB_SETCURSEL,
+        (WPARAM)(cfg.clickAction < 0 || cfg.clickAction > 2 ? 1 : cfg.clickAction), 0);
     SetWindowTextW(st->hEditLat, CoordText(cfg.lat).c_str());
     SetWindowTextW(st->hEditLon, CoordText(cfg.lon).c_str());
 
@@ -398,7 +428,9 @@ bool SaveFromDialog(DlgState* st, HWND hWnd) {
     }
 
     cfg.autoLocate = SendMessageW(st->hCheckAuto, BM_GETCHECK, 0, 0) == BST_CHECKED;
-    cfg.clickToggle = SendMessageW(st->hCheckClick, BM_GETCHECK, 0, 0) == BST_CHECKED;
+    int clickAction = (int)SendMessageW(st->hComboClick, CB_GETCURSEL, 0, 0);
+    if (clickAction < 0 || clickAction > 2) clickAction = 1;
+    cfg.clickAction = clickAction;
 
     if (mode == 1) {
         if (cfg.autoLocate) {
@@ -461,8 +493,8 @@ LRESULT CALLBACK DlgWndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam) {
         HDC hdc = BeginPaint(hWnd, &ps);
         HPEN pen = CreatePen(PS_SOLID, 1, RGB(229, 229, 234));
         HPEN old = (HPEN)SelectObject(hdc, pen);
-        MoveToEx(hdc, 48, 188, nullptr);
-        LineTo(hdc, 298, 188);
+        MoveToEx(hdc, kMargin, kSepY, nullptr);
+        LineTo(hdc, kDlgW - kMargin, kSepY);
         SelectObject(hdc, old);
         DeleteObject(pen);
         EndPaint(hWnd, &ps);
@@ -473,7 +505,11 @@ LRESULT CALLBACK DlgWndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam) {
     case WM_CTLCOLORLISTBOX: {
         HDC hdc = (HDC)wParam;
         SetBkColor(hdc, RGB(255, 255, 255));
-        SetTextColor(hdc, RGB(29, 29, 31));
+        // 底部状态文字用次级灰，避免和输入内容抢视觉
+        if (msg == WM_CTLCOLORSTATIC && st && (HWND)lParam == st->hLblStatus)
+            SetTextColor(hdc, RGB(100, 100, 108));
+        else
+            SetTextColor(hdc, RGB(29, 29, 31));
         return (LRESULT)GetStockObject(WHITE_BRUSH);
     }
     case WM_DRAWITEM: {
@@ -509,7 +545,7 @@ LRESULT CALLBACK DlgWndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam) {
                 TryLocate(st, hWnd);
         } else if ((id == IDC_EDIT_LAT || id == IDC_EDIT_LON) && code == EN_CHANGE) {
             UpdateUiState(st);
-        } else if (id == IDC_CHECK_CLICK && code == BN_CLICKED) {
+        } else if (id == IDC_COMBO_CLICK && code == CBN_SELCHANGE) {
             UpdateUiState(st);
         } else if (id == IDCANCEL) {
             // IsDialogMessageW 把焦点在子控件时的 ESC 转成 WM_COMMAND(IDCANCEL)
@@ -570,7 +606,7 @@ bool COptionsDlg::Show(HWND hParent, CAutoThemePlugin* plugin) {
     DlgState state;
     state.plugin = plugin;
 
-    RECT rcWnd = { 0, 0, 346, 432 };
+    RECT rcWnd = { 0, 0, kDlgW, kDlgH };
     AdjustWindowRectEx(&rcWnd, WS_OVERLAPPED | WS_CAPTION | WS_SYSMENU, FALSE,
                        WS_EX_DLGMODALFRAME);
     int W = rcWnd.right - rcWnd.left;
