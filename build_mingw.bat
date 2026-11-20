@@ -20,7 +20,7 @@ if not exist "%OUTDIR%" mkdir "%OUTDIR%"
   "%SRC%\core\DemangleStub.cpp" ^
   "%SRC%\net\Http.cpp" "%SRC%\net\Util.cpp" "%SRC%\net\Location.cpp" ^
   "%SRC%\ui\OptionsDlg.cpp" ^
-  -lwinhttp -ladvapi32 -luser32 -lgdi32 -lshell32 ^
+  -lwinhttp -ladvapi32 -luser32 -lgdi32 ^
   -o "%OUTDIR%\AutoTheme.dll"
 
 if errorlevel 1 (

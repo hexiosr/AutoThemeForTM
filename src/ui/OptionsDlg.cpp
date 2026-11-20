@@ -125,17 +125,14 @@ void UpdateUiState(DlgState* st);
 
 std::wstring CoordText(double value) {
     wchar_t buf[64] = {};
-    swprintf_s(buf, L"%g", value);
-    return buf;
-}
-
-std::wstring ClockText(long long epoch) {
-    time_t t = (time_t)epoch;
-    struct tm lt{};
-    localtime_s(&lt, &t);
-    wchar_t buf[16] = {};
-    swprintf_s(buf, L"%02d:%02d", lt.tm_hour, lt.tm_min);
-    return buf;
+    swprintf_s(buf, L"%.6f", value);
+    std::wstring s = buf;
+    // 去掉尾随的 0 和小数点（%.6f 比 %g 保留更多有效数字）
+    if (s.find(L'.') != std::wstring::npos) {
+        while (!s.empty() && s.back() == L'0') s.pop_back();
+        if (!s.empty() && s.back() == L'.') s.pop_back();
+    }
+    return s;
 }
 
 // 按坐标计算今日深色时段（日落到日出）
@@ -148,7 +145,8 @@ std::wstring DarkWindowText(double lat, double lon) {
     if (!sun.valid) return L"无法计算日出日落";
     if (sun.polarNight) return L"深色时段：全天（极夜）";
     if (sun.polarDay) return L"深色时段：无（极昼）";
-    return L"深色时段 " + ClockText(sun.sunset) + L" – " + ClockText(sun.sunrise);
+    return L"深色时段 " + ThemeConfigStore::FormatEpochClock(sun.sunset)
+         + L" – " + ThemeConfigStore::FormatEpochClock(sun.sunrise);
 }
 
 std::wstring AppendDarkWindow(const std::wstring& text, const std::wstring& dark) {
@@ -375,15 +373,9 @@ bool ParseCoord(HWND edit, double lo, double hi, double& out) {
     GetWindowTextW(edit, buf, 64);
     wchar_t* end = nullptr;
     double value = wcstod(buf, &end);
-    if (end == buf) {
-        SetWindowTextW(edit, L"0");
-        return false;
-    }
+    if (end == buf) return false;   // 不改写输入，让用户自己修正
     while (*end == L' ' || *end == L'\t') ++end;
-    if (*end != 0 || value < lo || value > hi) {
-        SetWindowTextW(edit, L"0");
-        return false;
-    }
+    if (*end != 0 || value < lo || value > hi) return false;
     out = value;
     return true;
 }
@@ -519,6 +511,10 @@ LRESULT CALLBACK DlgWndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam) {
             UpdateUiState(st);
         } else if (id == IDC_CHECK_CLICK && code == BN_CLICKED) {
             UpdateUiState(st);
+        } else if (id == IDCANCEL) {
+            // IsDialogMessageW 把焦点在子控件时的 ESC 转成 WM_COMMAND(IDCANCEL)
+            st->result = false;
+            st->closed = true;
         } else if (id == IDC_BTN_OK) {
             if (SaveFromDialog(st, hWnd)) {
                 st->saved = true;

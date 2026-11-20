@@ -20,15 +20,6 @@ int LocalMinute(long long now) {
     return lt.tm_hour * 60 + lt.tm_min;
 }
 
-std::wstring ClockText(long long epoch) {
-    time_t t = (time_t)epoch;
-    struct tm lt{};
-    localtime_s(&lt, &t);
-    wchar_t buf[16] = {};
-    swprintf_s(buf, L"%02d:%02d", lt.tm_hour, lt.tm_min);
-    return buf;
-}
-
 bool InDarkWindow(int startMin, int endMin, int minute) {
     if (startMin < endMin) return minute >= startMin && minute < endMin;
     return minute >= startMin || minute < endMin;
@@ -200,8 +191,11 @@ const wchar_t* CAutoThemePlugin::GetInfo(PluginInfoIndex index) {
 }
 
 const wchar_t* CAutoThemePlugin::GetTooltipInfo() {
+    // 锁内拷贝到稳定缓冲：返回的指针在下次调用前一直有效，
+    // 不会被工作线程的 SetTooltip 重新分配掉
     std::lock_guard<std::mutex> lock(m_mutex);
-    return m_tooltip.c_str();
+    lstrcpynW(m_tooltipBuf, m_tooltip.c_str(), 256);
+    return m_tooltipBuf;
 }
 
 bool CAutoThemePlugin::IsCurrentlyLight() const {
@@ -280,6 +274,12 @@ void CAutoThemePlugin::Wake() {
 void CAutoThemePlugin::Shutdown() {
     m_stop.store(true);
     Wake();
+    // 进程退出路径（ExitProcess 已先终止其他线程）关句柄是安全的；
+    // 卸载场景本就不支持（线程未 join），见 DllMain 注释
+    if (m_wakeEvent) {
+        CloseHandle(m_wakeEvent);
+        m_wakeEvent = nullptr;
+    }
 }
 
 void CAutoThemePlugin::WorkerLoop() {
@@ -362,7 +362,8 @@ void CAutoThemePlugin::Tick(const ThemeConfig& cfgIn) {
             detail = L"极昼";
         } else {
             desired = (now < sun.sunrise || now >= sun.sunset) ? 0 : 1;
-            detail = L"日出 " + ClockText(sun.sunrise) + L" · 日落 " + ClockText(sun.sunset);
+            detail = L"日出 " + ThemeConfigStore::FormatEpochClock(sun.sunrise)
+                   + L" · 日落 " + ThemeConfigStore::FormatEpochClock(sun.sunset);
         }
         if (!cfg.city.empty()) detail += L"（" + cfg.city + L"）";
     }

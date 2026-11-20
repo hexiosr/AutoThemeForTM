@@ -24,6 +24,7 @@
 
 ## 说明
 
+- 自动切换会把「应用」和「系统」的深浅色设为同值（`AppsUseLightTheme` 与 `SystemUsesLightTheme` 一起写入）；习惯于两者分开设置的用户请注意
 - 手动切换后，到下一次自动切换时刻前不会被覆盖
 - 自动定位依次尝试 ip-api.com（IPv4）、ipinfo.io、ipwho.is，仅首次和每 30 天刷新时联网；国内 IPv6 出口会被 ipwho.is 误判，故放在最后
 - 切换方式：写 `HKCU\Software\Microsoft\Windows\CurrentVersion\Themes\Personalize` 下的 `AppsUseLightTheme`、`SystemUsesLightTheme`，然后广播 `WM_SETTINGCHANGE`（`ImmersiveColorSet`）

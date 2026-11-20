@@ -64,6 +64,7 @@ private:
 
     mutable std::mutex m_mutex;   // tooltip / 手动切换覆盖
     std::wstring m_tooltip;
+    wchar_t m_tooltipBuf[256] = {};   // GetTooltipInfo 返回的稳定缓冲
     bool m_override = false;
     long long m_overrideUntil = 0;
     std::atomic<long long> m_nextLocateTry{0};

@@ -29,6 +29,7 @@ public:
 
     static bool ParseTime(const std::wstring& text, int& minutes);
     static std::wstring FormatTime(int minutes);
+    static std::wstring FormatEpochClock(long long epoch);   // Unix 时间戳 -> HH:MM
 
 private:
     ThemeConfigStore() = default;

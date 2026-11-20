@@ -87,6 +87,15 @@ std::wstring ThemeConfigStore::FormatTime(int minutes) {
     return buf;
 }
 
+std::wstring ThemeConfigStore::FormatEpochClock(long long epoch) {
+    time_t t = (time_t)epoch;
+    struct tm lt{};
+    localtime_s(&lt, &t);
+    wchar_t buf[16] = {};
+    swprintf_s(buf, L"%02d:%02d", lt.tm_hour, lt.tm_min);
+    return buf;
+}
+
 void ThemeConfigStore::Load() {
     const std::wstring file = FilePath();
     ThemeConfig cfg;
