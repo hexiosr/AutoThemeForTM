@@ -2,6 +2,7 @@
 #include "pch.h"
 #include "OptionsDlg.h"
 #include "AutoThemePlugin.h"
+#include "Solar.h"
 #include "ThemeConfig.h"
 #include "../net/Location.h"
 
@@ -120,13 +121,42 @@ void SetStatus(DlgState* st, const wchar_t* text) {
     if (st && st->hLblStatus) SetWindowTextW(st->hLblStatus, text);
 }
 
+void UpdateUiState(DlgState* st);
+
 std::wstring CoordText(double value) {
     wchar_t buf[64] = {};
     swprintf_s(buf, L"%g", value);
     return buf;
 }
 
+std::wstring ClockText(long long epoch) {
+    time_t t = (time_t)epoch;
+    struct tm lt{};
+    localtime_s(&lt, &t);
+    wchar_t buf[16] = {};
+    swprintf_s(buf, L"%02d:%02d", lt.tm_hour, lt.tm_min);
+    return buf;
+}
+
+// 按坐标计算今日深色时段（日落到日出）
+std::wstring DarkWindowText(double lat, double lon) {
+    if (lat == 0 && lon == 0) return {};
+    time_t t = time(nullptr);
+    struct tm lt{};
+    localtime_s(&lt, &t);
+    SunTimes sun = ComputeSunTimes(lt.tm_year + 1900, lt.tm_mon + 1, lt.tm_mday, lat, lon);
+    if (!sun.valid) return L"无法计算日出日落";
+    if (sun.polarNight) return L"深色时段：全天（极夜）";
+    if (sun.polarDay) return L"深色时段：无（极昼）";
+    return L"深色时段 " + ClockText(sun.sunset) + L" – " + ClockText(sun.sunrise);
+}
+
+std::wstring AppendDarkWindow(const std::wstring& text, const std::wstring& dark) {
+    return dark.empty() ? text : text + L"\r\n" + dark;
+}
+
 bool TryLocate(DlgState* st, HWND hWnd) {
+    if (!st) return false;
     SetStatus(st, L"正在定位…");
     UpdateWindow(hWnd);
     HCURSOR oldCursor = SetCursor(LoadCursorW(NULL, IDC_WAIT));
@@ -147,10 +177,7 @@ bool TryLocate(DlgState* st, HWND hWnd) {
     SetWindowTextW(st->hEditLat, CoordText(loc.lat).c_str());
     SetWindowTextW(st->hEditLon, CoordText(loc.lon).c_str());
 
-    std::wstring text = L"已定位：";
-    if (!loc.city.empty()) text += loc.city + L" · ";
-    text += CoordText(loc.lat) + L", " + CoordText(loc.lon);
-    SetStatus(st, text.c_str());
+    UpdateUiState(st);
     return true;
 }
 
@@ -182,26 +209,29 @@ void UpdateUiState(DlgState* st) {
         bool clickOn = SendMessageW(st->hCheckClick, BM_GETCHECK, 0, 0) == BST_CHECKED;
         SetStatus(st, clickOn ? L"仅手动切换：点击任务栏主题项"
                               : L"仅手动切换：右键菜单");
-    } else if (autoLocate) {
+    } else {
         wchar_t lat[32] = {}, lon[32] = {};
         GetWindowTextW(st->hEditLat, lat, 32);
         GetWindowTextW(st->hEditLon, lon, 32);
         double la = wcstod(lat, nullptr);
         double lo = wcstod(lon, nullptr);
-        if (la == 0 && lo == 0) {
-            SetStatus(st, L"勾选后自动获取位置");
+        const std::wstring dark = DarkWindowText(la, lo);
+        if (autoLocate) {
+            if (la == 0 && lo == 0) {
+                SetStatus(st, L"勾选后自动获取位置");
+            } else {
+                ThemeConfig cfg = ThemeConfigStore::Instance().Get();
+                const std::wstring& city = st->located ? st->locCity : cfg.city;
+                std::wstring text = L"已定位：";
+                if (!city.empty()) text += city + L" · ";
+                text += lat;
+                text += L", ";
+                text += lon;
+                SetStatus(st, AppendDarkWindow(text, dark).c_str());
+            }
         } else {
-            ThemeConfig cfg = ThemeConfigStore::Instance().Get();
-            const std::wstring& city = st->located ? st->locCity : cfg.city;
-            std::wstring text = L"已定位：";
-            if (!city.empty()) text += city + L" · ";
-            text += lat;
-            text += L", ";
-            text += lon;
-            SetStatus(st, text.c_str());
+            SetStatus(st, dark.empty() ? L"填写所在经纬度，北纬/东经为正" : dark.c_str());
         }
-    } else {
-        SetStatus(st, L"填写所在经纬度，北纬/东经为正");
     }
 }
 
@@ -251,7 +281,7 @@ void CreateControls(HWND hWnd, DlgState* st) {
     add(L"BUTTON", L"任务栏单击切换主题", BS_AUTOCHECKBOX, 48, 284, 250, 30,
         IDC_CHECK_CLICK, &st->hCheckClick);
 
-    add(L"STATIC", L"", SS_LEFT, 48, 322, 286, 40, IDC_LBL_STATUS, &st->hLblStatus);
+    add(L"STATIC", L"", SS_LEFT, 48, 322, 286, 46, IDC_LBL_STATUS, &st->hLblStatus);
 
     add(L"BUTTON", L"确定", BS_OWNERDRAW, 28, 372, 92, 38, IDC_BTN_OK);
     add(L"BUTTON", L"应用", BS_OWNERDRAW, 136, 372, 92, 38, IDC_BTN_APPLY);
@@ -485,6 +515,8 @@ LRESULT CALLBACK DlgWndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam) {
             UpdateUiState(st);
             if (checked && SendMessageW(st->hComboMode, CB_GETCURSEL, 0, 0) == 1)
                 TryLocate(st, hWnd);
+        } else if ((id == IDC_EDIT_LAT || id == IDC_EDIT_LON) && code == EN_CHANGE) {
+            UpdateUiState(st);
         } else if (id == IDC_CHECK_CLICK && code == BN_CLICKED) {
             UpdateUiState(st);
         } else if (id == IDC_BTN_OK) {
